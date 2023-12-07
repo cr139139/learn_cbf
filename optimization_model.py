@@ -19,8 +19,8 @@ class ObsOpt(nn.Module):
             self.fixed_obstacles = False
             # creating 2D grid positions for circles
             if self.real_demonstration:
-                x_temp = torch.linspace(-4.6, -4.15, n_grid)
-                y_temp = torch.linspace(-0.1, 0.6, n_grid)
+                x_temp = torch.linspace(-4.75, -4., n_grid)
+                y_temp = torch.linspace(-0.2, 0.7, n_grid)
                 radius = 0.01
             else:
                 x_temp = torch.linspace(0.1, 0.9, n_grid)
@@ -124,12 +124,12 @@ class ObsOpt(nn.Module):
     def clamp_parameters(self):
         if not self.fixed_obstacles:
             if self.real_demonstration:
-                self.x_obstacles[:, 0].data.clamp_(-4.7, -4.05)
-                self.x_obstacles[:, 1].data.clamp_(-0., 0.7)
-                self.r_obstacles.data.clamp_(0.01, 0.1)
+                # self.x_obstacles[:, 0].data.clamp_(-4.6, -4.05)
+                # self.x_obstacles[:, 1].data.clamp_(-0.2, 0.7)
+                self.r_obstacles.data.clamp_(0.0, 0.5)
             else:
-                self.x_obstacles.data.clamp_(0.0, 1.0)
-                self.r_obstacles.data.clamp_(0.01, 0.1)
+                # self.x_obstacles.data.clamp_(0.0, 1.0)
+                self.r_obstacles.data.clamp_(0.0, 0.5)
         if not self.fixed_lbd:
             self.lbd.data.clamp_(0.01)
         if not self.fixed_alpha:

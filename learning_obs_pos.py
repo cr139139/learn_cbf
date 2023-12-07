@@ -3,11 +3,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 plt.style.use('bmh')
-torch.set_default_dtype(torch.float64)
+torch.set_default_dtype(torch.float16)
 
 from optimization_model import ObsOpt
 from data_loading_tool import data_load
-from draw_tool import draw_prediction, draw_prediction_3d
+from draw_tool import draw_prediction_3d, drawer_2d
 from evaluation_tool import get_evaluation_metric
 
 # Load dataset
@@ -30,18 +30,23 @@ u_current = torch.from_numpy(u_current)
 x_target = torch.from_numpy(x_target)
 
 # Downsample training datapoints
-# n_datapoints = 99
-# x_current = x_current[:n_datapoints]
-# u_current = u_current[:n_datapoints]
-# x_target = x_target[:n_datapoints]
+x_current = x_current[::10]
+u_current = u_current[::10]
+x_target = x_target[::10]
 
 # Initialize the model.
-model = ObsOpt(alpha=0.01, lbd=0.01, input_limit=input_limit ,n_grid=5, real_demonstration=real_demonstration)
+model = ObsOpt(alpha=0.01, lbd=0.01, input_limit=input_limit, n_grid=10, real_demonstration=real_demonstration)
 loss_fn = torch.nn.CosineEmbeddingLoss()
 learning_rate = 1e-2
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-for t in range(1):
+max_iteration = 50
+drawer = drawer_2d(trajectories, x_obstacles.detach().numpy(), r_obstacles.detach().numpy(),
+                   model.x_obstacles.detach().numpy(), model.r_obstacles.detach().numpy(),
+                   x_current.detach().numpy(), u_current.detach().numpy(), real_demonstration,
+                   max_iteration=max_iteration)
+
+for iteration in range(1, max_iteration+1):
     u_pred, collision_loss = model(x_current, x_target)
 
     # compute loss
@@ -55,12 +60,14 @@ for t in range(1):
     model.clamp_parameters()
     evaluation = get_evaluation_metric(model.x_obstacles.detach().numpy(), model.r_obstacles.detach().numpy(),
                                        x_obstacles, r_obstacles, real_demonstration=real_demonstration)
-    print("iteration: ", t, ", loss: ", loss.item(), ", (IoU SoT ToS): ", evaluation)
+    print("iteration: ", iteration, ", loss: ", loss.item(), ", (IoU SoT ToS): ", evaluation)
 
-draw_prediction(trajectories,
-                x_obstacles, r_obstacles,
-                model.x_obstacles.detach().numpy(), model.r_obstacles.detach().numpy(),
-                x_current.detach().numpy(), u_pred.detach().numpy(), real_demonstration=real_demonstration)
+    drawer.update_and_show(model.x_obstacles.detach().numpy(),
+                           model.r_obstacles.detach().numpy(),
+                           u_pred.detach().numpy(), iteration,
+                           loss.item(), evaluation[1])
+drawer.save_model_data("testing.npz")
+drawer.show()
 
 # 3D visualization for real demonstration
 if real_demonstration:
@@ -68,6 +75,8 @@ if real_demonstration:
     x_obstacles = np.concatenate([x_obstacles, np.ones((x_obstacles.shape[0], 1)) * height], axis=1)
     x_obstacles_pred = model.x_obstacles.detach().numpy()
     r_obstacles_pred = model.r_obstacles.detach().numpy()
+    x_obstacles_pred = x_obstacles_pred[r_obstacles_pred > 0]
+    r_obstacles_pred = r_obstacles_pred[r_obstacles_pred > 0]
     x_obstacles_pred = np.concatenate([x_obstacles_pred, np.ones((x_obstacles_pred.shape[0], 1)) * height], axis=1)
     x_current = x_current.detach().numpy()
     u_pred = u_pred.detach().numpy()

@@ -3,11 +3,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 plt.style.use('bmh')
-torch.set_default_dtype(torch.float64)
+torch.set_default_dtype(torch.float16)
 
 from optimization_model import ObsOpt
 from data_loading_tool import data_load
-from draw_tool import draw_prediction, draw_prediction_3d
+from draw_tool import draw_prediction_3d, drawer_2d
 
 # Load dataset
 real_demonstration = False
@@ -25,8 +25,9 @@ input_limit = np.abs(u_current).max()
 
 x_obstacles = torch.from_numpy(x_obstacles)
 r_obstacles = torch.from_numpy(r_obstacles)
-x_current = torch.from_numpy(x_current)[0:1]
-x_target = torch.from_numpy(x_target)[0:1]
+x_current = torch.from_numpy(x_current)
+u_current = torch.from_numpy(u_current)
+x_target = torch.from_numpy(x_target)
 
 # Downsample training datapoints
 # n_datapoints = 99
@@ -38,22 +39,22 @@ x_target = torch.from_numpy(x_target)[0:1]
 model = ObsOpt(x_obstacles=x_obstacles, r_obstacles=r_obstacles,
                alpha=0.01, lbd=0.01, input_limit=input_limit,
                real_demonstration=real_demonstration)
+
+drawer = drawer_2d(trajectories, x_obstacles.detach().numpy(), r_obstacles.detach().numpy(),
+                   model.x_obstacles.detach().numpy(), model.r_obstacles.detach().numpy(),
+                   x_current.detach().numpy(), u_current.detach().numpy(), real_demonstration,
+                   max_iteration=0)
 u_pred_all = []
 x_current_all = []
+x_current_i = x_current[0:1]
 with torch.inference_mode():
     for t in range(1000):
-        u_pred, collision_loss = model(x_current, x_target)
-        x_current_all.append(x_current.detach().clone())
+        u_pred, collision_loss = model(x_current_i, x_target[0:1])
+        x_current_all.append(x_current_i.detach().clone())
         u_pred_all.append(u_pred.detach().clone())
-        x_current += u_pred
-
-u_pred_all = torch.cat(u_pred_all)
-x_current_all = torch.cat(x_current_all)
-
-draw_prediction(trajectories,
-                x_obstacles, r_obstacles,
-                model.x_obstacles.detach().numpy(), model.r_obstacles.detach().numpy(),
-                x_current_all.detach().numpy(), u_pred_all.detach().numpy(), real_demonstration=real_demonstration)
+        x_current_i += u_pred
+        drawer.show_control(torch.cat(x_current_all).detach().numpy(), torch.cat(u_pred_all).detach().numpy())
+drawer.show()
 
 # 3D visualization for real demonstration
 if real_demonstration:
